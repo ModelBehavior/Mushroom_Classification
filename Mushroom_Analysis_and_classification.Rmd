@@ -23,8 +23,6 @@ str(mushroom)
 summary(mushroom)
 ```
 
-## Explore Data
-
 ## Build a model
 ```{r}
 set.seed(123) # for reproducability 
@@ -118,20 +116,3 @@ final_res %>%
   roc_curve(Class,.pred_edible) %>% 
   autoplot() # How our model performed at different thresholds
 ```
-
-```{r}
-# Linear Seperation issues
-# AIC comparison
-# Spore,Odor AIC = 298.9
-# Just Odor AIC=842.8
-# Just Spore Print AIC= 4704
-# Bruse,Gill_Size,Ring_Type AIC = 3187
-# 
-```
-
-## Evaluate modeling
-
-```{r}
-conf_mat()
-```
-
