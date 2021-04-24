@@ -1,0 +1,137 @@
+---
+title: "Mushroom Analysis"
+author: Ra'Shawn Howard
+output: html_notebook
+---
+
+```{r echo=FALSE,include=FALSE}
+# libraries
+library(tidymodels)
+library(tidyverse)
+```
+
+```{r}
+# Read data into R
+mushroom <- read_csv("/Users/rashawnhoward/Downloads/Sample-Data-Mushroom-Classification.csv",col_names = TRUE)
+
+# Make column variables factors
+mushroom %>% 
+  map_df(~as.factor(.)) -> mushroom
+
+ # Quick Summary
+str(mushroom)
+summary(mushroom)
+```
+
+## Explore Data
+
+## Build a model
+```{r}
+set.seed(123) # for reproducability 
+# Initial split of data into 80% for training and 20% for testing
+splits <- initial_split(mushroom,prop=.8,strata = Class) # Strata Sampling!
+train <- training(splits)
+test <- testing(splits)
+```
+
+```{r}
+# base model for feature selection
+base_model <- rand_forest(mode = "classification") %>%
+  set_engine("ranger", importance = "permutation")
+
+set.seed(12)
+# Recipe for preprocessing data
+recipe(Class~.,data = train) %>% 
+  step_nzv(all_nominal()) %>% 
+  step_zv(all_nominal()) %>% 
+  recipeselectors::step_select_vip(all_predictors(),model = base_model,top_p = 2,outcome = "Class") %>% 
+  step_dummy(all_nominal(),-all_outcomes()) -> rec
+
+```
+
+```{r}
+# resample method 10-fold CV
+set.seed(123) # Reproducability
+resample <- vfold_cv(train,v=10)
+```
+
+```{r}
+# Model Specification
+logistic_spec <- logistic_reg(penalty = tune(), mixture = 1) %>% # Lasso
+  set_engine("glmnet")
+```
+
+```{r}
+# Model Workflow
+logistic_wf <- 
+  workflow() %>% 
+  add_recipe(rec) %>% 
+  add_model(logistic_spec)
+```
+
+```{r}
+# grid search
+logistic_grid<- tune_grid(
+  logistic_wf,
+  resamples=resample
+)
+```
+
+```{r}
+# Collect metrics
+logistic_grid %>% 
+  collect_metrics()
+
+# Best by accuracy
+logistic_grid %>% 
+  show_best("accuracy")
+
+# Best by roc_auc
+logistic_grid %>% 
+  show_best("roc_auc")
+
+best_logistic <- select_best(logistic_grid, "accuracy")
+```
+
+```{r}
+# Finalize workflow
+# final glmnet
+final_logistic <- finalize_workflow(logistic_wf,best_logistic)
+final_logistic
+```
+
+```{r}
+# last_fit, fit the final best model to the training set 
+# and evaluate the test set
+
+final_res <- last_fit(final_logistic,splits)
+
+final_res %>% 
+  collect_metrics() # No overfitting 
+
+final_res %>% 
+  collect_predictions() %>% 
+  conf_mat(Class,.pred_class) # confusion matrix
+
+final_res %>% 
+  collect_predictions() %>% 
+  roc_curve(Class,.pred_edible) %>% 
+  autoplot() # How our model performed at different thresholds
+```
+
+```{r}
+# Linear Seperation issues
+# AIC comparison
+# Spore,Odor AIC = 298.9
+# Just Odor AIC=842.8
+# Just Spore Print AIC= 4704
+# Bruse,Gill_Size,Ring_Type AIC = 3187
+# 
+```
+
+## Evaluate modeling
+
+```{r}
+conf_mat()
+```
+
